@@ -11,26 +11,44 @@ import (
 	"os"
 )
 
+var googleStorageUrl = "https://shopify-video-production-core-originals.storage.googleapis.com"
+
 var stagedUploadsRes StagedUploadsCreateRes
 
 var productId string
 var productAlt string
 var graphQlUrl string
-var googleStorageUrl string
+
 var filePath string
 var filenname string
+var shopifyWebsite string
 
 func main() {
-	graphQlUrl = "https://www-succubus-com.myshopify.com/admin/api/graphql.json"
-	productId = "4092299345971"
-	productAlt = "alt text"
-	googleStorageUrl = "https://shopify-video-production-core-originals.storage.googleapis.com"
-	filePath = "z:\\Image\\banned_AC2220_maria_bow_belt_yellow\\"
-	filenname = "banned_AC2220_maria_bow_belt_yellow-10.mp4"
+	graphQlUrl = "admin/api/graphql.json"
+
+	println("Starting REST API endpoints")
+
+	http.HandleFunc("/video/add", HTTPSAddVideo)
+	http.ListenAndServe(":8081", nil)
+}
+
+func HTTPSAddVideo(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Endpoint Hit: HTTPSAddVideo")
+
+	shopifyWebsite = r.URL.Query().Get("shopifywebsite")
+	productId = r.URL.Query().Get("productid")
+	productAlt = r.URL.Query().Get("alt")
+	filePath = r.URL.Query().Get("filepath")
+	filenname = r.URL.Query().Get("filename")
+	shopifyAccessToken = r.URL.Query().Get("shopifyaccesstoken")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 
 	PrepareForUpload()
 	UploadToGooleStorage()
 	AddVideoToShopifyProduct()
+
 }
 
 // https://shopify.dev/docs/api/admin-graphql/2023-07/mutations/stagedUploadsCreate
@@ -56,13 +74,11 @@ func PrepareForUpload() {
 		},
 	}
 
-	resp, err := makeGraphQLRequestToShopify(graphQlUrl, payload)
+	resp, err := makeGraphQLRequestToShopify(shopifyWebsite+graphQlUrl, payload)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
-
-	fmt.Println(resp)
 
 	err = json.Unmarshal([]byte(resp), &stagedUploadsRes)
 	if err != nil {
@@ -89,13 +105,19 @@ func AddVideoToShopifyProduct() {
 		},
 	}
 
-	resp, err := makeGraphQLRequestToShopify(graphQlUrl, payload)
+	resp, err := makeGraphQLRequestToShopify(shopifyWebsite+graphQlUrl, payload)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
-	fmt.Println(resp)
+	addMediaToShopifyRes := StagedUploadsCreateRes{}
+
+	err = json.Unmarshal([]byte(resp), &addMediaToShopifyRes)
+	if err != nil {
+		fmt.Println("Error unmarshaling response:", err)
+		return
+	}
 }
 
 func UploadToGooleStorage() {
